@@ -1,0 +1,82 @@
+{
+  "name": "template-engine",
+  "version": "2.0.0",
+  "description": "A powerful Carbone-like template-to-document generation engine with multi-format support",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "start": "node dist/index.js",
+    "example:basic": "npm run build && node dist/examples/basic-usage.js",
+    "example:array": "npm run build && node dist/array-debug-test.js",
+    "example:formats": "npm run build && node dist/complete-integration-example.js",
+    "setup:pdf": "npm install puppeteer",
+    "setup:libreoffice": "echo 'Please install LibreOffice manually from https://www.libreoffice.org/'",
+        "format": "prettier --write src/**/*.ts"
+  },
+  "keywords": [
+    "template",
+    "document",
+    "generation",
+    "pdf",
+    "docx",
+    "xlsx",
+    "carbone",
+    "reporting",
+    "automation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "xml2js": "^0.6.2",
+    "xpath": "^0.0.32",
+    "@xmldom/xmldom": "^0.8.10",
+    "mammoth": "^1.6.0",
+    "exceljs": "^4.4.0",
+    "node-html-parser": "^6.1.12",
+    "ioredis": "^5.3.2",
+    "node-cache": "^5.1.2",
+    "lru-cache": "^10.1.0",
+    "winston": "^3.11.0",
+    "uuid": "^9.0.1",
+    "lodash": "^4.17.21"
+  },
+  "optionalDependencies": {
+    "puppeteer": "^21.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/jest": "^29.5.8",
+    "@types/uuid": "^9.0.7",
+    "@types/lodash": "^4.14.202",
+    "@types/xml2js": "^0.4.14",
+    "typescript": "^5.3.3",
+    "ts-node-dev": "^2.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "eslint": "^8.55.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/template-engine.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/template-engine/issues"
+  },
+  "homepage": "https://github.com/yourusername/template-engine#readme",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ]
+}
