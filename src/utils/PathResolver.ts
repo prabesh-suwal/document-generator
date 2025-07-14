@@ -34,7 +34,9 @@ export class PathResolver {
       if (current == null) return undefined
 
       if (segment.type === 'property') {
-        current = current[segment.name]
+        if (segment && segment.name !== undefined) {
+          current = current[segment.name]
+        }
       } else if (segment.type === 'array') {
         if (!Array.isArray(current)) return undefined
         

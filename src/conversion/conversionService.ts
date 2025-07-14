@@ -270,14 +270,14 @@ export class ConversionService {
       const { ChromiumConverter } = require('./ChromiumConverter')
       this.registerConverter(new ChromiumConverter())
     } catch (error) {
-      console.warn('Chromium converter not available:', error.message)
+      console.warn('Chromium converter not available:', (error as Error).message)
     }
     
     try {
       const { LibreOfficeConverter } = require('./LibreOfficeConverter')
       this.registerConverter(new LibreOfficeConverter())
     } catch (error) {
-      console.warn('LibreOffice converter not available:', error.message)
+      console.warn('LibreOffice converter not available:', (error as Error).message)
     }
   }
 
@@ -896,15 +896,20 @@ export class LibreOfficeConverter implements ConverterEngine {
 
   private getLibreOfficeFormat(format: DocumentFormat): string {
     const formatMap: Record<DocumentFormat, string> = {
-      [DocumentFormat.PDF]: 'pdf',
-      [DocumentFormat.DOCX]: 'docx',
-      [DocumentFormat.ODT]: 'odt',
-      [DocumentFormat.XLSX]: 'xlsx',
-      [DocumentFormat.ODS]: 'ods',
-      [DocumentFormat.HTML]: 'html',
-      [DocumentFormat.TXT]: 'txt',
-      [DocumentFormat.RTF]: 'rtf'
-    }
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  odt: 'application/vnd.oasis.opendocument.text',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',  // Add
+  odp: 'application/vnd.oasis.opendocument.presentation',                              // Add
+  html: 'text/html',
+  txt: 'text/plain',
+  rtf: 'application/rtf',     // Add
+  csv: 'text/csv',            // Add
+  xml: 'application/xml',     // Add
+  md: 'text/markdown'         // Add
+}
     
     return formatMap[format] || format
   }
@@ -937,10 +942,10 @@ export class LibreOfficeConverter implements ConverterEngine {
     timeout: number
   ): Promise<{ success: boolean; errors?: string[] }> {
     return new Promise((resolve) => {
-      const process = spawn(cmd[0], cmd.slice(1), {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, HOME: os.tmpdir() } // Avoid home directory issues
-      })
+      const childProcess = spawn(cmd[0], cmd.slice(1), {
+  stdio: ['ignore', 'pipe', 'pipe'],
+  env: { ...process.env, HOME: os.tmpdir() }
+})
 
       let stdout = ''
       let stderr = ''
@@ -948,11 +953,11 @@ export class LibreOfficeConverter implements ConverterEngine {
 
       const cleanup = () => {
         if (timeoutId) clearTimeout(timeoutId)
-        if (!process.killed) {
-          process.kill('SIGTERM')
+        if (!childProcess.killed) {
+          childProcess.kill('SIGTERM')
           setTimeout(() => {
-            if (!process.killed) {
-              process.kill('SIGKILL')
+            if (!childProcess.killed) {
+              childProcess.kill('SIGKILL')
             }
           }, 5000)
         }
@@ -966,16 +971,15 @@ export class LibreOfficeConverter implements ConverterEngine {
         })
       }, timeout)
 
-      process.stdout?.on('data', (data) => {
-        stdout += data.toString()
+childProcess.stdout?.on('data', (data: Buffer) => {    
+      stdout += data.toString()
       })
 
-      process.stderr?.on('data', (data) => {
-        stderr += data.toString()
+childProcess.stderr?.on('data', (data: Buffer) => {
+          stderr += data.toString()
       })
 
-      process.on('close', (code) => {
-        cleanup()
+childProcess.on('close', (code: number | null) => {        cleanup()
         
         if (code === 0) {
           resolve({ success: true })
@@ -987,8 +991,7 @@ export class LibreOfficeConverter implements ConverterEngine {
         }
       })
 
-      process.on('error', (error) => {
-        cleanup()
+childProcess.on('error', (error: Error) => {        cleanup()
         resolve({
           success: false,
           errors: [error.message]

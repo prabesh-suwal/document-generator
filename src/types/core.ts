@@ -15,6 +15,7 @@ export enum DocumentFormat {
   RTF = 'rtf'
 }
 
+
 export enum TagType {
   DATA = 'data',           // {d.property}
   COMPLEMENT = 'complement', // {c.property}
@@ -169,9 +170,10 @@ export interface RenderMetadata {
   renderTime: Date
   duration: number
   outputSize: number
-  tagsProcessed?: number
-  linesGenerated?: number
-  conversionApplied?: boolean
+  fromCache?: boolean
+  cacheHit?: boolean
+  conversionApplied?: boolean    // Add this
+  linesGenerated?: number        // Add this
 }
 
 export interface RenderRequest {

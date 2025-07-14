@@ -33,28 +33,50 @@ import {
   AggMaxFormatter
 } from '../formatters/aggregation/AggregationFormatters'
 
-// Enhanced feature interfaces
-interface EnhancedEngineConfig extends Partial<EngineConfig> {
-  caching?: {
-    templates?: CacheConfig
-    renders?: CacheConfig
-    conversions?: CacheConfig
-  }
-  conversion?: {
-    enablePuppeteer?: boolean
-    enableLibreOffice?: boolean
-    timeout?: number
-    quality?: 'low' | 'medium' | 'high'
+interface EnhancedEngineConfig {
+  performance?: {
+    enableMonitoring?: boolean
+    enableBenchmarking?: boolean
+    maxConcurrentRenders?: number
+    workerPools?: {
+      render: any
+      conversion: any
+    }
+    caching?: {
+      templates: any
+      renders: any
+      conversions: any
+    }
+    limits?: {
+      maxTemplateSize: number
+      maxDataSize: number
+      maxRenderTime: number
+    }
   }
   security?: {
     enableValidation?: boolean
     sanitizeInput?: boolean
     allowDangerousPatterns?: boolean
+    sandbox?: boolean
+    allowedTags?: string[]
+    maxNestingDepth?: number
+    allowExternalResources?: boolean
   }
-  performance?: {
-    enableMonitoring?: boolean
-    enableBenchmarking?: boolean
-    maxConcurrentRenders?: number
+  cache?: any
+  caching?: {                    // Add this
+    templates?: { enabled: boolean }
+    renders?: { enabled: boolean }
+    conversions?: { enabled: boolean }
+  }
+  conversion?: {                 // Add this
+    enablePuppeteer?: boolean
+    enableLibreOffice?: boolean
+  }
+  formats?: {
+    input?: any[]
+    output?: any[]
+    defaultInput?: any           // Add this
+    defaultOutput?: any          // Add this
   }
 }
 
@@ -152,7 +174,7 @@ interface HealthCheck {
   message: string
 }
 
-export class TemplateEngine {
+export class EnhancedTemplateEngine {
   private parser: TemplateParser
   private processor: DataProcessor
   private renderer: RendererEngine
@@ -208,14 +230,14 @@ export class TemplateEngine {
         
         if (cached) {
           this.stats.cacheHits++
-          this.endMeasurement(renderTimer)
+          renderTime: new Date()
           
           return {
             ...cached,
             metadata: {
               ...cached.metadata,
               fromCache: true,
-              renderTime: this.endMeasurement(renderTimer)
+              renderTime: new Date()
             }
           }
         }
@@ -255,7 +277,7 @@ export class TemplateEngine {
         metadata: {
           ...finalResult.metadata,
           fromCache: false,
-          renderTime: this.endMeasurement(renderTimer)
+          renderTime: new Date()
         }
       }
     } catch (error) {
@@ -1267,4 +1289,4 @@ export class TemplateEngine {
 }
 
 // Export the enhanced template engine
-export { TemplateEngine }
+export { EnhancedTemplateEngine as TemplateEngine }

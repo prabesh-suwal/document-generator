@@ -85,7 +85,8 @@ export class DocumentUtils {
       [DocumentFormat.TXT]: 'text/plain',
       [DocumentFormat.CSV]: 'text/csv',
       [DocumentFormat.XML]: 'application/xml',
-      [DocumentFormat.MARKDOWN]: 'text/markdown'
+      [DocumentFormat.MARKDOWN]: 'text/markdown',
+      [DocumentFormat.RTF]: 'application/rtf',    // Add this line
     }
     
     return mimeTypes[format] || 'application/octet-stream'
