@@ -32,60 +32,71 @@ import {
   AggMinFormatter,
   AggMaxFormatter
 } from '../formatters/aggregation/AggregationFormatters'
-
 interface EnhancedEngineConfig {
-  performance?: {
-    enableMonitoring?: boolean
-    enableBenchmarking?: boolean
-    maxConcurrentRenders?: number
-    workerPools?: {
-      render: any
-      conversion: any
-    }
-    caching?: {
-      templates: any
-      renders: any
-      conversions: any
-    }
-    limits?: {
-      maxTemplateSize: number
-      maxDataSize: number
-      maxRenderTime: number
-    }
+  caching?: {
+    templates?: CacheConfig
+    renders?: CacheConfig
+    conversions?: CacheConfig
+  }
+  conversion?: {
+    enablePuppeteer?: boolean
+    enableLibreOffice?: boolean
+    timeout?: number
+    quality?: 'low' | 'medium' | 'high'
   }
   security?: {
     enableValidation?: boolean
     sanitizeInput?: boolean
     allowDangerousPatterns?: boolean
-    sandbox?: boolean
-    allowedTags?: string[]
-    maxNestingDepth?: number
-    allowExternalResources?: boolean
+    sandbox?: boolean                     // Add this
+    allowedTags?: string[]               // Add this
+    maxNestingDepth?: number             // Add this
+    allowExternalResources?: boolean     // Add this
   }
-  cache?: any
-  caching?: {                    // Add this
-    templates?: { enabled: boolean }
-    renders?: { enabled: boolean }
-    conversions?: { enabled: boolean }
-  }
-  conversion?: {                 // Add this
-    enablePuppeteer?: boolean
-    enableLibreOffice?: boolean
+  performance?: {
+    enableMonitoring?: boolean
+    enableBenchmarking?: boolean
+    maxConcurrentRenders?: number
+    workerPools?: {                      // Add this
+      render: any
+      conversion: any
+    }
+    caching?: {                          // Add this
+      templates: any
+      renders: any
+      conversions: any
+    }
+    limits?: {                           // Add this
+      maxTemplateSize: number
+      maxDataSize: number
+      maxRenderTime: number
+    }
   }
   formats?: {
     input?: any[]
     output?: any[]
-    defaultInput?: any           // Add this
-    defaultOutput?: any          // Add this
+    defaultInput?: any
+    defaultOutput?: any
+  }
+  storage?: {                            // Add this
+    templatesPath?: string
+    cachePath?: string
+    outputPath?: string
+    tempPath?: string
+  }
+  logging?: {                            // Add this
+    level?: 'debug' | 'info' | 'warn' | 'error'
+    format?: 'json' | 'simple'
+    outputs?: string[]
   }
 }
 
 interface CacheConfig {
   enabled: boolean
-  provider: 'memory' | 'redis' | 'file'
-  ttlMs: number
-  maxSize: number
-  keyPrefix: string
+  provider?: 'memory' | 'redis' | 'file'  // Add provider (optional)
+  ttlMs?: number                          // Add ttlMs (optional)
+  maxSize?: number                        // Add maxSize (optional)
+  keyPrefix?: string                      // Add keyPrefix (optional)
 }
 
 interface QueuedRender {
