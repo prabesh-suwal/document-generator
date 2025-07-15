@@ -90,58 +90,67 @@ export class RendererEngine {
    * Expand a single line containing array iteration tags into multiple lines
    */
   private expandLineForArrays(line: string, arrayTags: TagInfo[], processedData: ProcessedData): string[] {
-    if (arrayTags.length === 0) return [line]
-    
-    // Get the primary array (assume all iteration tags in same line use same array)
-    const primaryTag = arrayTags[0]
-    const arrayData = this.getArrayData(primaryTag.arrayPath!.basePath, processedData.main)
-    
-    if (!Array.isArray(arrayData) || arrayData.length === 0) {
-      return [] // No data = no lines
-    }
-    
-    const expandedLines: string[] = []
-    
-    // Create one line for each array item
-    for (let i = 0; i < arrayData.length; i++) {
-      let expandedLine = line
-      
-      // Replace all array iteration tags in this line
-      for (const arrayTag of arrayTags) {
-        const resolvedValue = this.resolveArrayItemValue(arrayTag, i, arrayData[i], processedData)
-        expandedLine = expandedLine.replace(
-          new RegExp(this.escapeRegExp(arrayTag.raw), 'g'),
-          String(resolvedValue || '')
-        )
-      }
-      
-      expandedLines.push(expandedLine)
-    }
-    
-    return expandedLines
+  if (arrayTags.length === 0) return [line]
+  
+  // Get the primary array (assume all iteration tags in same line use same array)
+  const primaryTag = arrayTags[0]
+  const arrayData = this.getArrayData(primaryTag.arrayPath!.basePath, processedData.main)
+  
+  if (!Array.isArray(arrayData) || arrayData.length === 0) {
+    return [] // No data = no lines
   }
+  
+  const expandedLines: string[] = []
+  
+  // Create one line for each array item
+  for (let i = 0; i < arrayData.length; i++) {
+    let expandedLine = line
+    
+    // Replace all array iteration tags in this line
+    for (const arrayTag of arrayTags) {
+      const resolvedValue = this.resolveArrayItemValue(arrayTag, i, arrayData[i], processedData)
+      // ✅ FIXED: Add curly braces around tag.raw
+      const tagPattern = `{${arrayTag.raw}}`
+      expandedLine = expandedLine.replace(
+        new RegExp(this.escapeRegExp(tagPattern), 'g'),
+        String(resolvedValue || '')
+      )
+    }
+    
+    expandedLines.push(expandedLine)
+  }
+  
+  return expandedLines
+}
 
   /**
    * Resolve value for a specific array item and index
    */
   private resolveArrayItemValue(tag: TagInfo, index: number, itemData: any, processedData: ProcessedData): any {
-    // Extract the property path after [i]
-    const pathAfterIndex = this.extractPathAfterArrayIndex(tag.path)
-    
-    // Get the value from the array item
-    let value = this.getValueByPath(itemData, pathAfterIndex)
-    
-    // Apply formatters if any
-    if (tag.formatters.length > 0) {
-      const context: FormatterContext = {
-        currentData: itemData,
-        rootData: processedData.main
-      }
-      value = this.applyFormatters(value, tag.formatters, context)
+  // Extract the property path after [i]
+  const pathAfterIndex = this.extractPathAfterArrayIndex(tag.path)
+  
+  // Get the value from the array item
+  let value = this.getValueByPath(itemData, pathAfterIndex)
+  
+  // Apply formatters if any
+  if (tag.formatters.length > 0) {
+    const context: FormatterContext = {
+      currentData: itemData,  // ✅ This should be the current array item
+      rootData: processedData.main
     }
     
-    return value
+    // ✅ FIXED: Use the formatter registry if available
+    if (this.formatterRegistry) {
+      value = this.formatterRegistry.executeChain(value, tag.formatters, context)
+    } else {
+      // Fallback to manual formatting
+      value = this.applyFormatters(value, tag.formatters, context)
+    }
   }
+  
+  return value
+}
 
   /**
    * Extract the property path that comes after [i] in array notation
