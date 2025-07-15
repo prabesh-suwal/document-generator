@@ -304,59 +304,100 @@ export class RendererEngine {
     }
   }
 
-  /**
-   * Process regular (non-array) tag replacements
-   */
-  private processRegularTags(content: string, tags: TagInfo[], processedData: ProcessedData): string {
-    let processedContent = content
+  // /**
+  //  * Process regular (non-array) tag replacements
+  //  */
+  // private processRegularTags(content: string, tags: TagInfo[], processedData: ProcessedData): string {
+  //   let processedContent = content
     
-    for (const tag of tags) {
-      // Skip array iteration tags (already processed)
-      if (tag.arrayPath && tag.arrayPath.index === 'i') {
-        continue
-      }
+  //   for (const tag of tags) {
+  //     // Skip array iteration tags (already processed)
+  //     if (tag.arrayPath && tag.arrayPath.index === 'i') {
+  //       continue
+  //     }
       
-      // Skip array aggregation tags (processed later)
-      if (tag.arrayPath && tag.arrayPath.index === '') {
-        continue
-      }
+  //     // Skip array aggregation tags (processed later)
+  //     if (tag.arrayPath && tag.arrayPath.index === '') {
+  //       continue
+  //     }
       
-      // Get resolved value from processed data
-      const resolvedValue = processedData.computed.get(tag.id)
-      if (resolvedValue !== undefined && resolvedValue !== `[ARRAY_ITERATION:${tag.id}]`) {
-        processedContent = processedContent.replace(
-          new RegExp(this.escapeRegExp(tag.raw), 'g'),
-          String(resolvedValue)
-        )
-      }
-    }
+  //     // Get resolved value from processed data
+  //     const resolvedValue = processedData.computed.get(tag.id)
+  //     if (resolvedValue !== undefined && resolvedValue !== `[ARRAY_ITERATION:${tag.id}]`) {
+  //       processedContent = processedContent.replace(
+  //         new RegExp(this.escapeRegExp(tag.raw), 'g'),
+  //         String(resolvedValue)
+  //       )
+  //     }
+  //   }
     
-    return processedContent
-  }
+  //   return processedContent
+  // }
 
   /**
    * Process array aggregation tags (like {d.items[].price:aggSum()})
    */
-  private processArrayAggregations(content: string, tags: TagInfo[], processedData: ProcessedData): string {
-    let processedContent = content
-    
-    for (const tag of tags) {
-      // Only process array aggregation tags
-      if (tag.arrayPath && tag.arrayPath.index === '') {
-        const aggregatedValue = processedData.aggregations.get(tag.id) || 
-                              processedData.computed.get(tag.id)
-        
-        if (aggregatedValue !== undefined) {
-          processedContent = processedContent.replace(
-            new RegExp(this.escapeRegExp(tag.raw), 'g'),
-            String(aggregatedValue)
-          )
-        }
-      }
+
+
+  private processRegularTags(content: string, tags: TagInfo[], processedData: ProcessedData): string {
+  let processedContent = content
+  
+  for (const tag of tags) {
+    // Skip array iteration tags (already processed)
+    if (tag.arrayPath && tag.arrayPath.index === 'i') {
+      continue
     }
     
-    return processedContent
+    // Skip array aggregation tags (processed later)
+    if (tag.arrayPath && tag.arrayPath.index === '') {
+      continue
+    }
+    
+    // Get resolved value from processed data
+    const resolvedValue = processedData.computed.get(tag.id)
+    
+    if (resolvedValue !== undefined && resolvedValue !== `[ARRAY_ITERATION:${tag.id}]`) {
+      // Create the full tag pattern to replace: {tag.raw}
+      const tagPattern = `{${tag.raw}}`
+      
+      // Replace all occurrences of this tag with the resolved value
+      processedContent = processedContent.replace(
+        new RegExp(this.escapeRegExp(tagPattern), 'g'),
+        String(resolvedValue)
+      )
+    }
   }
+  
+  return processedContent
+}
+
+
+/**
+ * Process array aggregation tags (like {d.items[].price:aggSum()})
+ */
+private processArrayAggregations(content: string, tags: TagInfo[], processedData: ProcessedData): string {
+  let processedContent = content
+  
+  for (const tag of tags) {
+    // Only process array aggregation tags
+    if (tag.arrayPath && tag.arrayPath.index === '') {
+      const aggregatedValue = processedData.aggregations.get(tag.id) || 
+                            processedData.computed.get(tag.id)
+      
+      if (aggregatedValue !== undefined) {
+        // Fix: Need to wrap tag.raw with curly braces for replacement
+        const tagPattern = `{${tag.raw}}`  // ✅ FIXED: Add curly braces
+        
+        processedContent = processedContent.replace(
+          new RegExp(this.escapeRegExp(tagPattern), 'g'),
+          String(aggregatedValue)
+        )
+      }
+    }
+  }
+  
+  return processedContent
+}
 
   /**
    * Escape special regex characters

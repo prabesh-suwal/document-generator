@@ -170,45 +170,46 @@ export class TemplateParser {
     return parts
   }
 
-  private parseArrayPath(path: string): ArrayPath | undefined {
-    const match = path.match(TemplateParser.ARRAY_PATTERN)
-    if (!match) {
-      return undefined
+private parseArrayPath(path: string): ArrayPath | undefined {
+  const match = path.match(TemplateParser.ARRAY_PATTERN)
+  if (!match) {
+    return undefined
+  }
+
+  const basePath = match[1]        // "d.items" or "d.numbers"
+  const indexOrFilter = match[2]   // "0", "i", "", or filter
+  const remainingPath = match[3]   // ".name" or ".value"
+
+  // Only create arrayPath for special cases, not for simple numeric indices
+  if (indexOrFilter === '') {
+    // Empty brackets: {d.items[].value} - aggregation
+    return {
+      basePath: basePath,
+      index: ''  // ✅ FIXED: Explicitly set index to empty string
     }
-
-    const basePath = match[1]        // "d.items"
-    const indexOrFilter = match[2]   // "0", "i", "", or filter
-    const remainingPath = match[3]   // ".name"
-
-    // Only create arrayPath for special cases, not for simple numeric indices
-    if (indexOrFilter === '') {
-      // Empty brackets: {d.items[]} - aggregation
-      return {
-        basePath: remainingPath ? `${basePath}${remainingPath}` : basePath
-      }
-    } else if (indexOrFilter === 'i') {
-      // Current index: {d.items[i]} - iteration
-      return {
-        basePath: remainingPath ? `${basePath}${remainingPath}` : basePath,
-        index: 'i'
-      }
-    } else if (indexOrFilter.match(/^i[+-]\d+$/)) {
-      // Relative index: {d.items[i+1]}, {d.items[i-1]} - iteration with offset
-      return {
-        basePath: remainingPath ? `${basePath}${remainingPath}` : basePath,
-        index: indexOrFilter
-      }
-    } else if (!isNaN(Number(indexOrFilter))) {
-      // Numeric index: {d.items[0]} - simple array access, no special handling needed
-      return undefined
-    } else {
-      // Filter condition: {d.items[status=active]} - filtered arrays
-      return {
-        basePath: remainingPath ? `${basePath}${remainingPath}` : basePath,
-        filter: this.parseFilterCondition(indexOrFilter)
-      }
+  } else if (indexOrFilter === 'i') {
+    // Current index: {d.items[i].name} - iteration
+    return {
+      basePath: basePath,
+      index: 'i'
+    }
+  } else if (indexOrFilter.match(/^i[+-]\d+$/)) {
+    // Relative index: {d.items[i+1]}, {d.items[i-1]} - iteration with offset
+    return {
+      basePath: basePath,
+      index: indexOrFilter
+    }
+  } else if (!isNaN(Number(indexOrFilter))) {
+    // Numeric index: {d.items[0]} - simple array access, no special handling needed
+    return undefined
+  } else {
+    // Filter condition: {d.items[status=active]} - filtered arrays
+    return {
+      basePath: basePath,
+      filter: this.parseFilterCondition(indexOrFilter)
     }
   }
+}
 
   private parseFilterCondition(filterStr: string): FilterCondition {
     const match = filterStr.match(TemplateParser.FILTER_PATTERN)

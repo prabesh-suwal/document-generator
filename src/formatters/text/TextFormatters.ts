@@ -55,21 +55,23 @@ export class LowerCaseFormatter extends BaseFormatter {
 export class UcFirstFormatter extends BaseFormatter {
   public name = 'ucFirst'
   public metadata = {
-    description: 'Capitalizes the first letter of each word',
+    description: 'Capitalizes the first letter only',
     category: FormatterCategory.TEXT,
     parameterTypes: [],
     examples: [
       {
         input: 'hello world',
         parameters: [],
-        output: 'Hello World',
-        description: 'Capitalize first letter of each word'
+        output: 'Hello world',  // Only first letter capitalized
+        description: 'Capitalize first letter only'
       }
     ]
   }
 
   public execute(value: any): string {
-    return String(value).replace(/\b\w/g, l => l.toUpperCase())
+    const str = String(value)
+    if (str.length === 0) return str
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
   }
 
   public validate(params: any[]): boolean {
