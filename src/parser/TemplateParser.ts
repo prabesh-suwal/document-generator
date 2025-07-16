@@ -170,46 +170,171 @@ export class TemplateParser {
     return parts
   }
 
+/**
+ * Parse array path with filtering support
+ * Examples:
+ * - items[i] → iteration
+ * - items[] → aggregation  
+ * - items[0] → index access
+ * - items[status='active'] → filtering
+ * - items[price>100][active=true] → multiple filters
+ */
 private parseArrayPath(path: string): ArrayPath | undefined {
-  const match = path.match(TemplateParser.ARRAY_PATTERN)
-  if (!match) {
+  console.log(`🔍 parseArrayPath: checking path="${path}"`)
+  
+  const arrayMatch = path.match(/^(.+?)\[([^\]]*)\](.*)$/)
+  if (!arrayMatch) {
+    console.log(`  No array pattern found`)
     return undefined
   }
 
-  const basePath = match[1]        // "d.items" or "d.numbers"
-  const indexOrFilter = match[2]   // "0", "i", "", or filter
-  const remainingPath = match[3]   // ".name" or ".value"
+  const basePath = arrayMatch[1]        // "d.items" - KEEP THIS AS IS
+  const bracketContent = arrayMatch[2]  // "0", "i", "", or filter content
+  const remainingPath = arrayMatch[3]   // ".description" - DON'T ADD TO BASEPATH
 
-  // Only create arrayPath for special cases, not for simple numeric indices
-  if (indexOrFilter === '') {
-    // Empty brackets: {d.items[].value} - aggregation
-    return {
-      basePath: basePath,
-      index: ''  // ✅ FIXED: Explicitly set index to empty string
+  console.log(`🔍 parseArrayPath: basePath="${basePath}", bracket="${bracketContent}", remaining="${remainingPath}"`)
+
+  let result: ArrayPath
+
+  if (bracketContent === '') {
+    // Empty brackets: {d.items[]} - aggregation
+    console.log(`  → Empty brackets - AGGREGATION`)
+    result = {
+      basePath: basePath,  // Keep as 'd.items', NOT 'd.items.description'
+      index: ''
     }
-  } else if (indexOrFilter === 'i') {
-    // Current index: {d.items[i].name} - iteration
-    return {
-      basePath: basePath,
+  } else if (bracketContent === 'i') {
+    // Current index: {d.items[i]} - iteration
+    console.log(`  → 'i' index - ITERATION`)
+    result = {
+      basePath: basePath,  // Keep as 'd.items', NOT 'd.items.description'
       index: 'i'
     }
-  } else if (indexOrFilter.match(/^i[+-]\d+$/)) {
-    // Relative index: {d.items[i+1]}, {d.items[i-1]} - iteration with offset
-    return {
+  } else if (bracketContent.match(/^i[+-]\d+$/)) {
+    console.log(`  → Relative index - ITERATION WITH OFFSET`)
+    result = {
       basePath: basePath,
-      index: indexOrFilter
+      index: bracketContent
     }
-  } else if (!isNaN(Number(indexOrFilter))) {
-    // Numeric index: {d.items[0]} - simple array access, no special handling needed
-    return undefined
-  } else {
-    // Filter condition: {d.items[status=active]} - filtered arrays
-    return {
+  } else if (!isNaN(Number(bracketContent))) {
+    console.log(`  → Numeric index - SIMPLE ACCESS`)
+    result = {
       basePath: basePath,
-      filter: this.parseFilterCondition(indexOrFilter)
+      index: parseInt(bracketContent)
+    }
+  } else {
+    console.log(`  → Filter condition - FILTERED`)
+    const filters = this.parseFilterExpression(bracketContent)
+    result = {
+      basePath: basePath,
+      filters: filters
     }
   }
+
+  // DON'T add remaining path to basePath - keep them separate
+  // The basePath should always be just the array ('d.items')
+  // The property ('description') should be extracted in processing
+
+  console.log(`  → Final arrayPath:`, result)
+  return result
 }
+
+/**
+ * Check if bracket content is a filter expression
+ */
+private isFilterExpression(content: string): boolean {
+  // Look for comparison operators
+  return /[=!<>]/.test(content) || content.includes('contains') || content.includes('in')
+}
+
+  /**
+ * Parse filter expression into FilterCondition
+ * Examples:
+ * - "status='active'" → { property: 'status', operator: 'eq', value: 'active' }
+ * - "price>100" → { property: 'price', operator: 'gt', value: 100 }
+ * - "name contains 'John'" → { property: 'name', operator: 'contains', value: 'John' }
+ */
+private parseFilterExpression(expression: string): FilterCondition[] {
+  const filters: FilterCondition[] = []
+  
+  // Handle multiple conditions separated by AND (for now, just AND)
+  const conditions = expression.split(/\s+and\s+/i)
+  
+  for (const condition of conditions) {
+    const filter = this.parseSingleFilter(condition.trim())
+    if (filter) {
+      filters.push(filter)
+    }
+  }
+  
+  return filters
+}
+
+/**
+ * Parse a single filter condition
+ */
+private parseSingleFilter(condition: string): FilterCondition | null {
+  console.log(`🔍 parseSingleFilter: "${condition}"`)
+  
+  // Try different operators in order of specificity
+  const operators = [
+    { pattern: /^(.+?)\s*>=\s*(.+)$/, op: 'gte' as const },
+    { pattern: /^(.+?)\s*<=\s*(.+)$/, op: 'lte' as const },
+    { pattern: /^(.+?)\s*!=\s*(.+)$/, op: 'ne' as const },
+    { pattern: /^(.+?)\s*=\s*(.+)$/, op: 'eq' as const },
+    { pattern: /^(.+?)\s*>\s*(.+)$/, op: 'gt' as const },
+    { pattern: /^(.+?)\s*<\s*(.+)$/, op: 'lt' as const },
+    { pattern: /^(.+?)\s+contains\s+(.+)$/i, op: 'contains' as const },
+    { pattern: /^(.+?)\s+startsWith\s+(.+)$/i, op: 'startsWith' as const },
+    { pattern: /^(.+?)\s+endsWith\s+(.+)$/i, op: 'endsWith' as const },
+    { pattern: /^(.+?)\s+in\s+(.+)$/i, op: 'in' as const }
+  ]
+
+  for (const { pattern, op } of operators) {
+    const match = condition.match(pattern)
+    if (match) {
+      const property = match[1].trim()
+      let value: any = match[2].trim()
+      
+      // Remove quotes from string values
+      if ((value.startsWith("'") && value.endsWith("'")) || 
+          (value.startsWith('"') && value.endsWith('"'))) {
+        value = value.slice(1, -1)
+      }
+      
+      // Convert numeric values
+      if (/^\d+(\.\d+)?$/.test(value)) {
+        value = parseFloat(value)
+      }
+      
+      // Convert boolean values
+      if (value === 'true') value = true
+      if (value === 'false') value = false
+      
+      console.log(`  → Parsed filter: ${property} ${op} ${value}`)
+      
+      return {
+        property,
+        operator: op,
+        value
+      }
+    }
+  }
+  
+  console.log(`  → No filter pattern matched`)
+  return null
+}
+
+/**
+   * DEBUGGING: Add this method to test array path parsing directly
+   */
+  public testArrayPathParsing(path: string): ArrayPath | undefined {
+    console.log(`\n🧪 Testing array path parsing for: "${path}"`)
+    const result = this.parseArrayPath(path)
+    console.log(`Result:`, result)
+    return result
+  }
+
 
   private parseFilterCondition(filterStr: string): FilterCondition {
     const match = filterStr.match(TemplateParser.FILTER_PATTERN)

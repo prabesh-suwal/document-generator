@@ -13,107 +13,124 @@ import {
 
 import { FormatterRegistry } from '../formatters/FormatterRegistry'
 
+import { v4 as uuidv4 } from 'uuid'
+
 export class DataProcessor {
   private formatterRegistry?: FormatterRegistry
+
+private currentRootData: any = null
 
   constructor(formatterRegistry?: FormatterRegistry) {
     this.formatterRegistry = formatterRegistry
   }
 
   public process(data: any, template: ParsedTemplate, complement?: any): ProcessedData {
-    const startTime = new Date()
-    const computed = new Map<string, any>()
-    const aggregations = new Map<string, any>()
-    const errors: ProcessingError[] = []
-    const warnings: ProcessingWarning[] = []
-
-    try {
-      // Prepare data object with complement
-      const fullData = {
-        ...data,
-        complement: complement
-      }
-
-      // Process all tags
-      for (const tag of template.tags) {
-  console.log(`🔍 Processing tag: ${tag.raw}`)
-  console.log(`  arrayPath:`, tag.arrayPath)
-  console.log(`  arrayPath?.index:`, tag.arrayPath?.index)
+  this.currentRootData = data // Store for context resolution
   
+  const startTime = new Date()
+  const computed = new Map<string, any>()
+  const aggregations = new Map<string, any>()
+  const errors: ProcessingError[] = []
+  const warnings: ProcessingWarning[] = []
+
   try {
-    let resolvedValue: any
+    // Prepare data object with complement
+    const fullData = {
+      ...data,
+      complement: complement
+    }
 
-    if (tag.arrayPath) {
-      if (tag.arrayPath.index === 'i') {
-        console.log(`  → Taking iteration branch`)
-        // Array iteration - mark for renderer processing
-        resolvedValue = `[ARRAY_ITERATION:${tag.id}]`
-      } else if (tag.arrayPath.index === '' || tag.arrayPath.index === undefined) {
-        console.log(`  → Taking aggregation branch (index='${tag.arrayPath.index}')`)
-        // Array aggregation - calculate now
-        resolvedValue = this.calculateArrayAggregation(tag, fullData)
-        aggregations.set(tag.id, resolvedValue)
-      } else {
-        console.log(`  → Taking specific index branch`)
-        // Specific array index
-        resolvedValue = this.resolveArrayIndex(tag, fullData)
-      }
-    } else {
-      console.log(`  → Regular path resolution (no arrayPath)`)
-      // Regular path resolution
-      resolvedValue = this.resolvePath(tag.path, fullData)
-      
-      // Apply formatters if any (excluding array operations)
-      if (tag.formatters.length > 0 && !this.hasArrayOperation(tag.formatters)) {
-        const context: FormatterContext = {
-          currentData: resolvedValue,
-          rootData: fullData
+    // Process all tags
+    for (const tag of template.tags) {
+      console.log(`🔍 Processing tag: ${tag.raw}`)
+      console.log(`  arrayPath:`, tag.arrayPath)
+      console.log(`  arrayPath?.index:`, tag.arrayPath?.index)
+
+      try {
+        let resolvedValue: any
+
+        if (tag.arrayPath) {
+          if (tag.arrayPath.index === 'i') {
+            console.log(`  → Taking iteration branch`)
+            // Array iteration - mark for renderer processing
+            resolvedValue = `[ARRAY_ITERATION:${tag.id}]`
+          } else if (tag.arrayPath.index === '' || tag.arrayPath.index === undefined) {
+            console.log(`  → Taking aggregation branch (index='${tag.arrayPath.index}')`)
+            // Array aggregation - calculate now
+            resolvedValue = this.calculateArrayAggregation(tag, fullData)
+            aggregations.set(tag.id, resolvedValue)
+          } else {
+            console.log(`  → Taking specific index branch`)
+            // Specific array index
+            resolvedValue = this.resolveArrayIndex(tag, fullData)
+          }
+        } else {
+          console.log(`  → Regular path resolution (no arrayPath)`)
+          // Regular path resolution
+          resolvedValue = this.resolvePath(tag.path, fullData)
+
+          // Apply formatters if any (excluding array operations)
+          if (tag.formatters.length > 0 && !this.hasArrayOperation(tag.formatters)) {
+            const context: FormatterContext = {
+              currentData: resolvedValue,
+              rootData: fullData
+            }
+            resolvedValue = this.executeFormatterChain(resolvedValue, tag.formatters, context, fullData)
+          }
         }
-        resolvedValue = this.executeFormatterChain(resolvedValue, tag.formatters, context, fullData)
+
+        console.log(`  Final resolvedValue:`, resolvedValue)
+        computed.set(tag.id, resolvedValue)
+
+      } catch (error) {
+        console.log(`  ❌ Error processing tag:`, error instanceof Error ? error.message : error)
+        errors.push({
+          code: 'TAG_RESOLUTION_ERROR',
+          message: `Failed to resolve tag ${tag.path}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          tagId: tag.id,
+          path: tag.path,
+          context: { tag, error }
+        })
+        // Set empty value for failed tags to prevent rendering issues
+        computed.set(tag.id, '')
       }
     }
 
-    console.log(`  Final resolvedValue:`, resolvedValue)
-    computed.set(tag.id, resolvedValue)
+    const endTime = new Date()
+    const metadata: ProcessingMetadata = {
+      startTime,
+      endTime,
+      duration: endTime.getTime() - startTime.getTime(),
+      dataSize: this.calculateDataSize(data),
+      tagCount: template.tags.length,
+      errors,
+      warnings
+    }
+
+    return {
+      main: fullData,
+      complement,
+      computed,
+      aggregations,
+      metadata
+    }
+
   } catch (error) {
-    console.log(`  ❌ Error processing tag:`, error instanceof Error ? error.message : error)
-          errors.push({
-            code: 'TAG_RESOLUTION_ERROR',
-            message: `Failed to resolve tag ${tag.path}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            tagId: tag.id,
-            path: tag.path,
-            context: { tag, error }
-          })
-          // Set empty value for failed tags to prevent rendering issues
-          computed.set(tag.id, '')
-        }
-      }
-
-      const endTime = new Date()
-      const metadata: ProcessingMetadata = {
-        startTime,
-        endTime,
-        duration: endTime.getTime() - startTime.getTime(),
-        dataSize: this.calculateDataSize(data),
-        tagCount: template.tags.length,
-        errors,
-        warnings
-      }
-
-      return {
-        main: fullData,
-        complement,
-        computed,
-        aggregations,
-        metadata
-      }
-    } catch (error) {
-      throw new DataProcessingError(
-        `Data processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { originalError: error, template: template.id }
-      )
-    }
+    throw new DataProcessingError(
+      `Data processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { originalError: error, template: template.id }
+    )
   }
+}
+
+  /**
+ * Check if formatter should be applied after aggregation
+ */
+private isPostAggregationFormatter(formatterName: string): boolean {
+  // Only these formatters make sense after aggregation
+  return ['round', 'add', 'sub', 'mul', 'div', 'upperCase', 'lowerCase', 'ucFirst', 'trim'].includes(formatterName)
+}
+
 
   /**
    * Calculate aggregation for array tags like {d.items[].price:aggSum()}
@@ -121,47 +138,68 @@ export class DataProcessor {
 
 private calculateArrayAggregation(tag: TagInfo, data: any): any {
   console.log('🔍 calculateArrayAggregation called')
-  console.log('  tag.path:', tag.path)
-  console.log('  tag.arrayPath:', tag.arrayPath)
-  console.log('  tag.formatters:', tag.formatters.map(f => f.name))
-  
+  console.log(`  tag.path: ${tag.path}`)
+  console.log(`  tag.arrayPath:`, tag.arrayPath)
+  console.log(`  tag.formatters:`, tag.formatters.map(f => f.name))
+
   const arrayData = this.getArrayData(tag.arrayPath!.basePath, data)
-  console.log('  arrayData from getArrayData:', arrayData)
+  console.log(`  arrayData from getArrayData:`, arrayData)
   
   if (!Array.isArray(arrayData) || arrayData.length === 0) {
-    console.log('  ❌ No array data found, returning 0')
     return 0
   }
   
   // Extract property path after []
   const propertyPath = this.extractPathAfterArrayAggregation(tag.path)
-  console.log('  propertyPath after []:', propertyPath)
+  console.log(`  propertyPath after []: ${propertyPath}`)
   
-  // Get values from array items
+  // Get values from array items - FIXED: Now properly handles dynamic parameters
   const values = arrayData.map((item, index) => {
     console.log(`  Processing item ${index}:`, item)
-    let value = this.getValueByPath(item, propertyPath)
-    console.log(`    Raw value from getValueByPath(item, "${propertyPath}"):`, value)
     
-    // Apply non-aggregation formatters first
+    let value = this.getValueByPath(item, propertyPath)
+    console.log(`    Raw value from getValueByPath(item, "${propertyPath}"): ${value}`)
+    
+    // Apply non-aggregation formatters with proper item context
     const nonAggFormatters = tag.formatters.filter(f => !this.isAggregationFormatter(f.name))
     console.log(`    Non-agg formatters:`, nonAggFormatters.map(f => f.name))
     
-    for (const formatter of nonAggFormatters) {
-      value = this.applySingleFormatter(value, formatter, item, data)
-      console.log(`    After ${formatter.name}:`, value)
+    // CRITICAL FIX: Create proper context for dynamic parameter resolution
+    const itemContext: FormatterContext = {
+      currentData: item,  // This is the key fix - provide item context
+      rootData: data
     }
     
-    const numValue = Number(value) || 0
-    console.log(`    Final numeric value:`, numValue)
-    return numValue
+    // Apply each formatter with the item context
+    for (const formatter of nonAggFormatters) {
+      console.log(`    Applying formatter: ${formatter.name}`)
+      
+      // Resolve parameters with item context
+      const resolvedParams = formatter.parameters.map((param: any) => {
+        if (param.type === 'dynamic' && param.path) {
+          // FIXED: Now resolves .price relative to current item
+          const resolvedValue = this.resolveDynamicParameter(param.path, itemContext, data)
+          console.log(`      Dynamic param ${param.path} resolved to: ${resolvedValue}`)
+          return resolvedValue
+        }
+        return param.value
+      })
+      
+      const oldValue = value
+      value = this.applySingleFormatter(value, { ...formatter, parameters: resolvedParams }, item, data)
+      console.log(`    After ${formatter.name}: ${oldValue} → ${value}`)
+    }
+    
+    const numericValue = Number(value) || 0
+    console.log(`    Final numeric value: ${numericValue}`)
+    return numericValue
   })
   
-  console.log('  All extracted values:', values)
+  console.log(`  All extracted values:`, values)
   
   // Apply aggregation formatters
   const aggFormatters = tag.formatters.filter(f => this.isAggregationFormatter(f.name))
-  console.log('  Aggregation formatters:', aggFormatters.map(f => f.name))
+  console.log(`  Aggregation formatters:`, aggFormatters.map(f => f.name))
   
   let result: any = values
   
@@ -187,22 +225,33 @@ private calculateArrayAggregation(tag: TagInfo, data: any): any {
         result = Math.max(...values)
         break
     }
-    console.log(`  Aggregation result:`, result)
+    console.log(`  Aggregation result: ${result}`)
   }
   
   // Apply post-aggregation formatters (like round)
+  // FIXED: Only apply formatters that make sense after aggregation
   const postAggFormatters = tag.formatters.filter(f => 
     !this.isAggregationFormatter(f.name) && 
-    ['round', 'add', 'mul'].includes(f.name)
+    this.isPostAggregationFormatter(f.name)
   )
+  console.log(`  Post-agg formatters:`, postAggFormatters.map(f => f.name))
   
-  console.log('  Post-agg formatters:', postAggFormatters.map(f => f.name))
   for (const formatter of postAggFormatters) {
-    result = this.applySingleFormatter(result, formatter, {}, data)
-    console.log(`  After post-agg ${formatter.name}:`, result)
+    const oldResult = result
+    // For post-aggregation, we don't need item context
+    const resolvedParams = formatter.parameters.map((param: any) => {
+      if (param.type === 'dynamic' && param.path) {
+        // Post-aggregation dynamic params resolve from root data
+        return this.resolveDynamicParameter(param.path, { currentData: data, rootData: data }, data)
+      }
+      return param.value
+    })
+    
+    result = this.applySingleFormatter(result, { ...formatter, parameters: resolvedParams }, {}, data)
+    console.log(`  After post-agg ${formatter.name}: ${oldResult} → ${result}`)
   }
   
-  console.log('  🎯 Final aggregation result:', result)
+  console.log(`  🎯 Final aggregation result: ${result}`)
   return result
 }
 
@@ -347,28 +396,35 @@ private calculateArrayAggregation(tag: TagInfo, data: any): any {
    * Resolve dynamic parameter paths like .price in context
    */
   private resolveDynamicParameter(path: string, context: FormatterContext, rootData: any): any {
-    if (path.startsWith('.')) {
-      // Relative path from current context
-      const relativePath = path.substring(1)
-      
-      if (context.currentData && typeof context.currentData === 'object') {
-        const result = this.getValueByPath(context.currentData, relativePath)
-        if (result !== undefined) {
-          return result
-        }
+  console.log(`      🔍 resolveDynamicParameter: path="${path}"`)
+  console.log(`        context.currentData:`, context.currentData)
+  
+  if (path.startsWith('.')) {
+    // Relative path from current context
+    const relativePath = path.substring(1)
+    console.log(`        Relative path: "${relativePath}"`)
+    
+    if (context.currentData && typeof context.currentData === 'object') {
+      const result = this.getValueByPath(context.currentData, relativePath)
+      console.log(`        Result from currentData: ${result}`)
+      if (result !== undefined) {
+        return result
       }
-      
-      // Fallback: resolve from root data
-      return this.getValueByPath(rootData, relativePath)
-    } else if (path.startsWith('d.')) {
-      // Absolute path from root data
-      return this.getValueByPath(rootData, path.substring(2))
-    } else if (path.startsWith('c.')) {
-      // Complement data path
-      return this.getValueByPath(rootData.complement, path.substring(2))
     }
-    return undefined
+    
+    // Fallback: resolve from root data
+    const fallbackResult = this.getValueByPath(rootData, relativePath)
+    console.log(`        Fallback from rootData: ${fallbackResult}`)
+    return fallbackResult
+  } else if (path.startsWith('d.')) {
+    // Absolute path from root data
+    return this.getValueByPath(rootData, path.substring(2))
+  } else if (path.startsWith('c.')) {
+    // Complement data path
+    return this.getValueByPath(rootData.complement, path.substring(2))
   }
+  return undefined
+}
 
   /**
    * Enhanced path resolution with proper array handling
@@ -479,19 +535,175 @@ private calculateArrayAggregation(tag: TagInfo, data: any): any {
   /**
    * Get array data from base path
    */
-  private getArrayData(basePath: string, data: any): any[] {
+    private getArrayData(basePath: string, data: any): any[] {
     const cleanPath = basePath.replace(/^d\./, '')
     const value = this.getValueByPath(data, cleanPath)
     return Array.isArray(value) ? value : []
   }
 
+  private processArrayTag(tag: TagInfo, data: any): any {
+  console.log(`🔍 processArrayTag: ${tag.path}`)
+  console.log(`  arrayPath:`, tag.arrayPath)
+  
+  if (!tag.arrayPath) {
+    return this.resolvePath(tag.path, data)
+  }
+
+  let arrayData = this.getArrayData(tag.arrayPath.basePath, data)
+  console.log(`  Base array data (${arrayData.length} items):`, arrayData)
+  
+  // Apply filters if present
+  if (tag.arrayPath.filters && tag.arrayPath.filters.length > 0) {
+    console.log(`  Applying ${tag.arrayPath.filters.length} filters:`, tag.arrayPath.filters)
+    arrayData = this.applyArrayFilters(arrayData, tag.arrayPath.filters)
+    console.log(`  Filtered array data (${arrayData.length} items):`, arrayData)
+  }
+  
+  // Handle different array operations
+  if (tag.arrayPath.index === 'i') {
+    // Array iteration with filtering
+    return this.processArrayIteration(tag, arrayData)
+  } else if (tag.arrayPath.index === '') {
+    // Array aggregation with filtering
+    return this.processArrayAggregation(tag, arrayData)
+  } else if (typeof tag.arrayPath.index === 'number') {
+    // Specific index access (filtering doesn't apply here)
+    const originalArray = this.getArrayData(tag.arrayPath.basePath, data)
+    return this.processArrayIndex(tag, originalArray)
+  }
+  
+  return ''
+}
+
+
+/**
+ * Helper method for compilation compatibility
+ */
+private processArrayIteration(tag: TagInfo, arrayData: any[]): string {
+  return `[ARRAY_ITERATION:${tag.id}]`
+}
+
+// private processArrayAggregation(tag: TagInfo, arrayData: any[]): any {
+//   if (!Array.isArray(arrayData) || arrayData.length === 0) {
+//     return 0
+//   }
+  
+//   // Extract property path after []
+//   const propertyPath = this.extractPathAfterArrayAggregation(tag.path)
+  
+//   // Get values from array items - FIXED: Now properly handles dynamic parameters
+//   const values = arrayData.map((item, index) => {
+//     let value = this.getValueByPath(item, propertyPath)
+    
+//     // Apply non-aggregation formatters with proper item context
+//     const nonAggFormatters = tag.formatters.filter(f => !this.isAggregationFormatter(f.name))
+    
+//     // CRITICAL FIX: Create proper context for dynamic parameter resolution
+//     const itemContext: FormatterContext = {
+//       currentData: item,  // This is the key fix - provide item context
+//       rootData: this.currentRootData || {}
+//     }
+    
+//     // Apply each formatter with the item context
+//     for (const formatter of nonAggFormatters) {
+//       // Resolve parameters with item context
+//       const resolvedParams = formatter.parameters.map((param: any) => {
+//         if (param.type === 'dynamic' && param.path) {
+//           // FIXED: Now resolves .price relative to current item
+//           return this.resolveDynamicParameter(param.path, itemContext, this.currentRootData || {})
+//         }
+//         return param.value
+//       })
+      
+//       value = this.applySingleFormatter(value, { ...formatter, parameters: resolvedParams }, item, this.currentRootData || {})
+//     }
+    
+//     return Number(value) || 0
+//   })
+  
+//   // Apply aggregation formatters
+//   const aggFormatters = tag.formatters.filter(f => this.isAggregationFormatter(f.name))
+//   let result: any = values
+  
+//   for (const formatter of aggFormatters) {
+//     switch (formatter.name) {
+//       case 'aggSum':
+//         result = values.reduce((sum, val) => sum + val, 0)
+//         break
+//       case 'aggAvg':
+//         result = values.reduce((sum, val) => sum + val, 0) / values.length
+//         break
+//       case 'aggCount':
+//         result = values.length
+//         break
+//       case 'aggMin':
+//         result = Math.min(...values)
+//         break
+//       case 'aggMax':
+//         result = Math.max(...values)
+//         break
+//     }
+//   }
+// }
+
+/**
+ * Helper method for compilation compatibility
+ */
+private processArrayAggregation(tag: TagInfo, arrayData: any[]): any {
+  return this.calculateArrayAggregation(tag, { items: arrayData })
+}
+
+/**
+ * Helper method for compilation compatibility
+ */
+private processArrayIndex(tag: TagInfo, arrayData: any[]): any {
+  return this.resolveArrayIndex(tag, { items: arrayData })
+}
+
+
+// private processArrayIndex(tag: TagInfo, arrayData: any[]): any {
+//   const index = Number(tag.arrayPath!.index)
+  
+//   if (!Array.isArray(arrayData) || index >= arrayData.length || index < 0) {
+//     return ''
+//   }
+  
+//   const item = arrayData[index]
+//   const propertyPath = this.extractPathAfterArrayIndex(tag.path)
+  
+//   let value = this.getValueByPath(item, propertyPath)
+  
+//   // Apply formatters
+//   if (tag.formatters.length > 0) {
+//     const context: FormatterContext = {
+//       currentData: item,
+//       rootData: this.currentRootData || {}
+//     }
+//     value = this.executeFormatterChain(value, tag.formatters, context, this.currentRootData || {})
+//   }
+  
+//   return value
+// }
+
+
+
+
   /**
    * Extract path after array aggregation notation
    */
-  private extractPathAfterArrayAggregation(path: string): string {
-    const match = path.match(/\[\]\.(.+)$/)
-    return match ? match[1] : ''
+  private extractPathAfterArrayAggregation(originalPath: string): string {
+  console.log(`🔍 extractPathAfterArrayAggregation: originalPath="${originalPath}"`)
+  
+  // For path like "d.items[].description", extract "description"
+  const bracketMatch = originalPath.match(/\[\]\.(.+)$/)
+  if (bracketMatch) {
+    console.log(`  Extracted property: "${bracketMatch[1]}"`)
+    return bracketMatch[1]
   }
+  
+  console.log(`  No property found after []`)
+  return ''
+}
 
   /**
    * Extract path after array index notation
@@ -516,63 +728,104 @@ private calculateArrayAggregation(tag: TagInfo, data: any): any {
   }
 
   private resolveArrayPath(arrayPath: ArrayPath, data: any): any {
-    const baseArray = this.resolvePath(arrayPath.basePath, data)
-    
-    if (!Array.isArray(baseArray)) {
-      return undefined
-    }
+  const baseArray = this.resolvePath(arrayPath.basePath, data)
+  
+  if (!Array.isArray(baseArray)) {
+    return undefined
+  }
 
-    // Handle different array access patterns
-    if (arrayPath.index !== undefined) {
-      if (arrayPath.index === 'i') {
-        // Return the array for iteration context
-        return baseArray
-      } else if (typeof arrayPath.index === 'string' && arrayPath.index.startsWith('i')) {
-        // Handle i+1, i-1 etc. - would need iteration context
-        return baseArray
-      } else if (typeof arrayPath.index === 'number') {
+  // Handle different array access patterns
+  if (arrayPath.index !== undefined) {
+    if (arrayPath.index === 'i') {
+      // Return the array for iteration context
+      return baseArray
+    } else if (typeof arrayPath.index === 'string' && arrayPath.index.startsWith('i')) {
+      // Handle i+1, i-1 etc.
+      // For now, just return the base array
+      return baseArray
+    } else if (typeof arrayPath.index === 'number') {
+      // Specific index access
+      if (arrayPath.index >= 0 && arrayPath.index < baseArray.length) {
         return baseArray[arrayPath.index]
       }
+      return undefined
     }
-
-    if (arrayPath.filter) {
-      return this.filterArray(baseArray, arrayPath.filter)
-    }
-
-    // Return entire array for iteration
-    return baseArray
   }
 
-  private filterArray(array: any[], filter: FilterCondition): any[] {
-    return array.filter(item => {
-      const itemValue = this.resolvePath(filter.property, item)
-      
-      switch (filter.operator) {
-        case 'eq':
-          return itemValue === filter.value
-        case 'ne':
-          return itemValue !== filter.value
-        case 'gt':
-          return itemValue > filter.value
-        case 'lt':
-          return itemValue < filter.value
-        case 'gte':
-          return itemValue >= filter.value
-        case 'lte':
-          return itemValue <= filter.value
-        case 'contains':
-          return String(itemValue).includes(String(filter.value))
-        default:
-          return false
-      }
-    })
+  // Apply filters if present - FIXED: Use 'filters' instead of 'filter'
+  if (arrayPath.filters) {
+    return this.filterArray(baseArray, arrayPath.filters)
   }
+
+  return baseArray
+}
+
+  /**
+ * Apply filters to array data
+ */
+private applyArrayFilters(arrayData: any[], filters: FilterCondition[]): any[] {
+  if (!filters || filters.length === 0) {
+    return arrayData
+  }
+  
+  return arrayData.filter(item => {
+    // All filters must pass (AND logic)
+    return filters.every(filter => this.evaluateFilter(item, filter))
+  })
+}
+
+private evaluateFilter(item: any, filter: FilterCondition): boolean {
+  const itemValue = this.getValueByPath(item, filter.property)
+  const filterValue = filter.value
+  
+  console.log(`🔍 Evaluating filter: ${filter.property} ${filter.operator} ${filterValue}`)
+  console.log(`  Item value: ${itemValue}, Filter value: ${filterValue}`)
+  
+  switch (filter.operator) {
+    case 'eq':
+      return itemValue == filterValue  // Loose equality
+    case 'ne':
+      return itemValue != filterValue
+    case 'gt':
+      return Number(itemValue) > Number(filterValue)
+    case 'lt':
+      return Number(itemValue) < Number(filterValue)
+    case 'gte':
+      return Number(itemValue) >= Number(filterValue)
+    case 'lte':
+      return Number(itemValue) <= Number(filterValue)
+    case 'contains':
+      return String(itemValue).toLowerCase().includes(String(filterValue).toLowerCase())
+    case 'startsWith':
+      return String(itemValue).toLowerCase().startsWith(String(filterValue).toLowerCase())
+    case 'endsWith':
+      return String(itemValue).toLowerCase().endsWith(String(filterValue).toLowerCase())
+    case 'in':
+      // filterValue should be an array or comma-separated string
+      const values = Array.isArray(filterValue) 
+        ? filterValue 
+        : String(filterValue).split(',').map(v => v.trim())
+      return values.includes(String(itemValue))
+    default:
+      console.warn(`Unknown filter operator: ${filter.operator}`)
+      return true
+  }
+}
+
+  private filterArray(array: any[], filters: FilterCondition[]): any[] {
+  return array.filter(item => {
+    // All filters must pass (AND logic)
+    return filters.every(filter => this.evaluateFilter(item, filter))
+  })
+}
+
+
 
   private calculateDataSize(data: any): number {
-    try {
-      return JSON.stringify(data).length
-    } catch {
-      return 0
-    }
+  try {
+    return JSON.stringify(data).length
+  } catch (error) {
+    return 0
   }
+}
 }

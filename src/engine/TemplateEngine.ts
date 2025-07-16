@@ -40,6 +40,10 @@ export class TemplateEngine {
   private formatterRegistry: FormatterRegistry
   private config: EngineConfig
 
+  private memoryCache: Map<string, { data: RenderedDocument; timestamp: number; ttl: number }> = new Map()
+  private readonly DEFAULT_CACHE_TTL = 3600000 // 1 hour in milliseconds
+
+
   constructor(config?: Partial<EngineConfig>) {
     this.config = this.mergeWithDefaultConfig(config)
     this.formatterRegistry = new FormatterRegistry()
@@ -455,4 +459,84 @@ export class TemplateEngine {
     // This would be expanded with actual cleanup logic
     console.log('Template engine shutting down...')
   }
+
+
+private async getCachedRender(key: string): Promise<RenderedDocument | null> {
+    const cached = this.memoryCache.get(key)
+    
+    if (!cached) {
+      return null
+    }
+    
+    // Check if expired
+    if (Date.now() > cached.timestamp + cached.ttl) {
+      this.memoryCache.delete(key)
+      return null
+    }
+    
+    console.log(`🎯 Cache HIT for key: ${key.substring(0, 20)}...`)
+    return cached.data
+  }
+
+  private async setCachedRender(key: string, result: RenderedDocument): Promise<void> {
+    // Don't cache if caching is disabled
+    if (!this.config.caching?.renders?.enabled) {
+      return
+    }
+    
+    const ttl = this.config.caching?.renders?.ttlMs || this.DEFAULT_CACHE_TTL
+    
+    this.memoryCache.set(key, {
+      data: result,
+      timestamp: Date.now(),
+      ttl: ttl
+    })
+    
+    console.log(`💾 Cache SET for key: ${key.substring(0, 20)}...`)
+    
+    // Simple cleanup: remove expired entries if cache gets too large
+    if (this.memoryCache.size > 1000) {
+      this.cleanupExpiredCache()
+    }
+  }
+
+  private cleanupExpiredCache(): void {
+    const now = Date.now()
+    let cleaned = 0
+    
+    for (const [key, cached] of this.memoryCache.entries()) {
+      if (now > cached.timestamp + cached.ttl) {
+        this.memoryCache.delete(key)
+        cleaned++
+      }
+    }
+    
+    if (cleaned > 0) {
+      console.log(`🧹 Cleaned ${cleaned} expired cache entries`)
+    }
+  }
+
+  // Add method to check cache status
+  public getCacheStats() {
+    const now = Date.now()
+    let expired = 0
+    let valid = 0
+    
+    for (const cached of this.memoryCache.values()) {
+      if (now > cached.timestamp + cached.ttl) {
+        expired++
+      } else {
+        valid++
+      }
+    }
+    
+    return {
+      total: this.memoryCache.size,
+      valid,
+      expired,
+      memoryUsage: JSON.stringify([...this.memoryCache.values()]).length
+    }
+  }
+
+
 }

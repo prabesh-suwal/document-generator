@@ -156,22 +156,7 @@ export class HtmlFormatHandler implements DocumentFormatHandler {
 
     // Ensure proper HTML structure
     if (!htmlContent.includes('<html>')) {
-      htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Generated Document</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .template-content { line-height: 1.6; }
-    </style>
-</head>
-<body>
-    <div class="template-content">
-        ${htmlContent}
-    </div>
-</body>
-</html>`
+      htmlContent = this.wrapInHtmlStructure(htmlContent)
     }
 
     const content = Buffer.from(htmlContent, 'utf-8')
@@ -187,6 +172,59 @@ export class HtmlFormatHandler implements DocumentFormatHandler {
       },
       warnings: []
     }
+  }
+
+  private wrapInHtmlStructure(content: string): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated Document</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .template-content { 
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 { color: #2c3e50; }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 20px 0;
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 12px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #f8f9fa; 
+            font-weight: 600;
+        }
+        .invoice-header { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 30px;
+        }
+        .invoice-total { 
+            font-size: 1.2em; 
+            font-weight: bold; 
+            color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <div class="template-content">
+        ${content}
+    </div>
+</body>
+</html>`
   }
 }
 

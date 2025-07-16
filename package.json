@@ -11,12 +11,30 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
     "start": "node dist/index.js",
+
     "example:basic": "npm run build && node dist/examples/basic-usage.js",
     "example:array": "npm run build && node dist/array-debug-test.js",
-    "example:formats": "npm run build && node dist/complete-integration-example.js",
+    "test:aggregation": "npm run build && node dist/examples/array-aggregation-fix-test.js",
+
+
+    "test:simple-doc": "npm run build && node dist/examples/simple-document-test.js",
+    "test:formats-doc": "npm run build && node dist/examples/document-format-examples.js",
+    "example:basic-doc": "npm run build && node dist/examples/simple-document-test.js",
+    "example:invoice-doc": "npm run test:simple",
+
+    "test:docx": "npm run build && node -e \"require('./dist/examples/document-format-examples.js').testDocxGeneration\"",
+    "test:html": "npm run build && node -e \"require('./dist/examples/document-format-examples.js').testHtmlGeneration\"",
+    "test:pdf": "npm run build && node -e \"require('./dist/examples/document-format-examples.js').testPdfGeneration\"",
+ 
+    "example:filtering": "npm run build && node dist/examples/array-filtering-examples.js",
+    "example:aggregation-fix": "npm run build && node dist/examples/array-aggregation-fix-test.js",
+    "test:filtering": "jest __tests__/array-filtering.test.ts",
+    "test:arrays": "jest __tests__/array-*.test.ts",
     "setup:pdf": "npm install puppeteer",
     "setup:libreoffice": "echo 'Please install LibreOffice manually from https://www.libreoffice.org/'",
-        "format": "prettier --write src/**/*.ts"
+    "format": "prettier --write src/**/*.ts",
+    "clean": "rm -rf dist && rm -rf output",
+    "clean:output": "rm -rf output/*"
   },
   "keywords": [
     "template",

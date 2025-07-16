@@ -7,6 +7,19 @@ async function testArrayIteration() {
   console.log('🔍 Testing Array Iteration...\n');
   
   try {
+const testTemplate = `
+Total Amount: {d.items[].qty:mul(.price):aggSum():round(2)}
+`
+
+const testData = {
+  items: [
+    { qty: 10, price: 125 },     // 10 * 125 = 1250
+    { qty: 1, price: 299.99 },   // 1 * 299.99 = 299.99  
+    { qty: 12, price: 50 }       // 12 * 50 = 600
+  ]
+}
+
+
     const engine = new TemplateEngine();
     
     // Test 1: Simple array iteration

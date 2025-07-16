@@ -37,12 +37,12 @@ export interface TagInfo {
 export interface ArrayPath {
   basePath: string
   index?: string | number
-  filter?: FilterCondition
+  filters?: FilterCondition[]  
 }
 
 export interface FilterCondition {
   property: string
-  operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains'
+  operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'in' | 'startsWith' | 'endsWith'
   value: any
 }
 
@@ -243,6 +243,11 @@ export interface EngineConfig {
   security: SecurityConfig
   storage: StorageConfig
   logging: LoggingConfig
+  caching?: {  // ADD this optional property
+    templates?: CacheConfig
+    renders?: CacheConfig
+    conversions?: CacheConfig
+  }
 }
 
 export interface PerformanceConfig {
