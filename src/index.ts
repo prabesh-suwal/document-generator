@@ -4,10 +4,23 @@ export { DataProcessor } from './processor/DataProcessor'
 export { RendererEngine } from './renderer/RendererEngine'
 export { FormatterRegistry } from './formatters/FormatterRegistry'
 
-// Export all types from core (this includes FormatterContext)
+// Export document format handlers
+export { 
+  EnhancedTemplateEngine, 
+  DocxFormatHandler,
+  FormatHandlerRegistry 
+} from './handlers/DocumentFormatHandlers'
+
+// Export all types
 export * from './types/core'
 
-// Export specific formatters (avoid conflicts)
+// Export utilities
+export { DocumentUtils } from './utils/DocumentUtils'
+
+// Export server for programmatic use
+export { default as createServer } from './server'
+
+// Export formatters
 export {
   UpperCaseFormatter,
   LowerCaseFormatter,

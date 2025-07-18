@@ -1,0 +1,80 @@
+``html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DOCX Template Engine Client</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>DOCX Template Engine</h1>
+    
+    <div>
+        <h2>Upload Template & Data</h2>
+        <form id="uploadForm">
+            <div>
+                <label>DOCX Template:</label>
+                <input type="file" id="templateFile" accept=".docx" required>
+            </div>
+            <div>
+                <label>JSON Data:</label>
+                <textarea id="jsonData" rows="10" cols="50" placeholder='{"name": "John", "items": [{"product": "Laptop", "price": 999}]}'></textarea>
+            </div>
+            <div>
+                <label>Convert To:</label>
+                <select id="convertTo">
+                    <option value="docx">DOCX</option>
+                    <option value="pdf">PDF</option>
+                    <option value="html">HTML</option>
+                </select>
+            </div>
+            <button type="submit">Render Document</button>
+        </form>
+    </div>
+
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const templateFile = document.getElementById('templateFile').files[0];
+            const jsonData = document.getElementById('jsonData').value;
+            const convertTo = document.getElementById('convertTo').value;
+            
+            if (!templateFile) {
+                alert('Please select a template file');
+                return;
+            }
+            
+            formData.append('template', templateFile);
+            formData.append('data', jsonData);
+            formData.append('options', JSON.stringify({ convertTo }));
+            
+            try {
+                const response = await axios.post('/api/render-docx', formData, {
+                    responseType: 'blob',
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+                
+                // Create download link
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `rendered-document.${convertTo}`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                
+                document.getElementById('result').innerHTML = '<p>✅ Document rendered successfully!</p>';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = '<p>❌ Error rendering document</p>';
+            }
+        });
+    </script>
+</body>
+</html>
